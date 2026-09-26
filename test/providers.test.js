@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { parseCaltrans, safeCaltransMediaUrl } from "../server/providers/caltrans.js";
-import { normalizeWindy } from "../server/providers/windy.js";
+import { normalizeWindy, listWindyByBbox } from "../server/providers/windy.js";
 import { customCamerasFromEnv } from "../server/providers/custom.js";
 import { app, parseBbox } from "../server/index.js";
 import { classifyCameraImage } from "../server/camera-health.js";
@@ -189,6 +189,39 @@ test("bbox parser rejects wrapping or inverted bounds", () => {
   assert.deepEqual(parseBbox("40,-70,30,-80"), [40, -70, 30, -80]);
   assert.throws(() => parseBbox("30,-70,40,-80"));
   assert.throws(() => parseBbox("40,-170,30,170"));
+});
+
+test("request-scoped Windy key is sent to Windy but not persisted", async () => {
+  let observedKey = "";
+  const fetchImpl = async (_url, options) => {
+    observedKey = options.headers["X-Windy-API-Key"];
+    return new Response(JSON.stringify({ webcams: [], total: 0 }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
+  };
+
+  const result = await listWindyByBbox(
+    [40, -70, 30, -80],
+    { max: 1, fetchImpl, apiKey: "browser-secret-test-key" }
+  );
+  assert.equal(result.status, "ok");
+  assert.equal(observedKey, "browser-secret-test-key");
+  assert.equal(JSON.stringify(result).includes("browser-secret-test-key"), false);
+});
+
+test("status API reports browser Windy key without echoing it", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  await new Promise((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  const response = await fetch("http://127.0.0.1:" + address.port + "/api/status", {
+    headers: { "X-Windy-API-Key": "browser-secret-test-key" }
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.providers.windy.configured, true);
+  assert.equal(JSON.stringify(payload).includes("browser-secret-test-key"), false);
 });
 
 test("status API reports provider configuration without exposing secrets", async (t) => {

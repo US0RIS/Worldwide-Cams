@@ -66,7 +66,12 @@ function sendError(res, error, status = 400) {
   });
 }
 
-app.get("/api/status", async (_req, res) => {
+function requestWindyKey(req) {
+  const value = String(req.get("X-Windy-API-Key") || "").trim();
+  return value.slice(0, 1000);
+}
+
+app.get("/api/status", async (req, res) => {
   let customCount = 0;
   let customError = null;
   try {
@@ -83,11 +88,11 @@ app.get("/api/status", async (_req, res) => {
         note: "Official California highway camera catalog"
       },
       windy: {
-        configured: windyConfigured(),
+        configured: windyConfigured(requestWindyKey(req)),
         mode: "map_clusters_plus_viewport_records",
         note: windyConfigured()
-          ? "Windy key configured server-side"
-          : "Set JARVIS_WINDY_WEBCAMS_API_KEY to enable the worldwide directory"
+          ? "Windy key available for this browser request"
+          : "Enter a Windy Webcams API key in the site or configure JARVIS_WINDY_WEBCAMS_API_KEY"
       },
       custom: {
         configured: customCount > 0,
@@ -126,9 +131,9 @@ app.get("/api/cameras/windy", async (req, res) => {
     const bbox = parseBbox(req.query.bbox);
     const max = Math.max(1, Math.min(1000, Math.floor(finiteNumber(req.query.max ?? 500, "max"))));
     res.setHeader("Cache-Control", "private, max-age=30");
-    res.json(await listWindyByBbox(bbox, { max }));
+    res.json(await listWindyByBbox(bbox, { max, apiKey: requestWindyKey(req) }));
   } catch (error) {
-    sendError(res, error, windyConfigured() ? 400 : 503);
+    sendError(res, error, windyConfigured(requestWindyKey(req)) ? 400 : 503);
   }
 });
 
@@ -137,9 +142,9 @@ app.get("/api/cameras/windy/clusters", async (req, res) => {
     const bbox = parseBbox(req.query.bbox);
     const zoom = Math.max(0, Math.min(4, Math.round(finiteNumber(req.query.zoom ?? 1, "zoom"))));
     res.setHeader("Cache-Control", "private, max-age=30");
-    res.json(await listWindyClusters(bbox, zoom));
+    res.json(await listWindyClusters(bbox, zoom, { apiKey: requestWindyKey(req) }));
   } catch (error) {
-    sendError(res, error, windyConfigured() ? 400 : 503);
+    sendError(res, error, windyConfigured(requestWindyKey(req)) ? 400 : 503);
   }
 });
 

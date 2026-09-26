@@ -6,6 +6,9 @@ const els = {
   providerStatus: document.querySelector("#provider-status"),
   cameraCount: document.querySelector("#camera-count"),
   coverageStatus: document.querySelector("#coverage-status"),
+  windyKeyInput: document.querySelector("#windy-key-input"),
+  windyKeySave: document.querySelector("#windy-key-save"),
+  windyKeyClear: document.querySelector("#windy-key-clear"),
   mapMessage: document.querySelector("#map-message"),
   searchForm: document.querySelector("#search-form"),
   searchInput: document.querySelector("#search-input"),
@@ -35,6 +38,34 @@ const els = {
   sourceLink: document.querySelector("#source-link"),
   windyAttribution: document.querySelector("#windy-attribution")
 };
+
+const WINDY_KEY_STORAGE = "worldwideCams.windyWebcamsAPIKey";
+
+function storedWindyKey() {
+  return String(localStorage.getItem(WINDY_KEY_STORAGE) || "").trim();
+}
+
+function setStoredWindyKey(value) {
+  const key = String(value || "").trim();
+  if (key) localStorage.setItem(WINDY_KEY_STORAGE, key);
+  else localStorage.removeItem(WINDY_KEY_STORAGE);
+  renderWindyKeyState();
+}
+
+function renderWindyKeyState() {
+  const configured = Boolean(storedWindyKey());
+  els.windyKeyInput.value = "";
+  els.windyKeyInput.placeholder = configured
+    ? "Windy key saved in this browser"
+    : "Windy Webcams API key";
+  els.windyKeySave.textContent = configured ? "Replace Windy Key" : "Save Windy Key";
+  els.windyKeyClear.hidden = !configured;
+}
+
+function windyHeaders() {
+  const key = storedWindyKey();
+  return key ? { "X-Windy-API-Key": key } : {};
+}
 
 const cameras = new Map();
 let providerStatus = null;
@@ -137,6 +168,15 @@ function updateWindyOverview(rows) {
   });
 }
 
+function clearWindyCameras() {
+  for (const [id, camera] of cameras.entries()) {
+    if (camera.provider_kind === "windy") cameras.delete(id);
+  }
+  updateWindyOverview([]);
+  updateCameraSource();
+  if (selectedCamera?.provider_kind === "windy") closeDetail();
+}
+
 function addCameras(rows) {
   for (const camera of rows || []) {
     if (!camera?.id || !Number.isFinite(camera.latitude) || !Number.isFinite(camera.longitude)) continue;
@@ -151,7 +191,13 @@ function addCameras(rows) {
 }
 
 function apiJson(url, signal) {
-  return fetch(url, { signal, headers: { Accept: "application/json" } }).then(async (response) => {
+  return fetch(url, {
+    signal,
+    headers: {
+      Accept: "application/json",
+      ...windyHeaders()
+    }
+  }).then(async (response) => {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
     return payload;
@@ -163,7 +209,8 @@ function apiPostJson(url, body) {
     method: "POST",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...windyHeaders()
     },
     body: JSON.stringify(body)
   }).then(async (response) => {
@@ -758,6 +805,37 @@ map.on("moveend", () => {
     await probeVisibleCaltrans();
   }, 250);
 });
+
+els.windyKeySave.addEventListener("click", async () => {
+  const key = els.windyKeyInput.value.trim();
+  if (!key) {
+    setMessage("Paste a Windy Webcams API key first.");
+    return;
+  }
+  setStoredWindyKey(key);
+  providerStatus = null;
+  clearWindyCameras();
+  setMessage("Windy key saved in this browser. Testing worldwide camera access…");
+  await loadStaticProviders();
+  await loadWindyForView({ force: true });
+});
+
+els.windyKeyClear.addEventListener("click", async () => {
+  setStoredWindyKey("");
+  providerStatus = null;
+  clearWindyCameras();
+  setMessage("Browser Windy key cleared. Caltrans and custom public sources remain available.");
+  await loadStaticProviders();
+});
+
+els.windyKeyInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    els.windyKeySave.click();
+  }
+});
+
+renderWindyKeyState();
 
 els.resetView.addEventListener("click", () => {
   map.flyTo({ center: [-18, 23], zoom: 1.35, bearing: 0, pitch: 0, duration: 900 });

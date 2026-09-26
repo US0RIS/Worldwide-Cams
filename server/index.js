@@ -90,7 +90,7 @@ app.get("/api/status", async (req, res) => {
       windy: {
         configured: windyConfigured(requestWindyKey(req)),
         mode: "map_clusters_plus_viewport_records",
-        note: windyConfigured()
+        note: windyConfigured(requestWindyKey(req))
           ? "Windy key available for this browser request"
           : "Enter a Windy Webcams API key in the site or configure JARVIS_WINDY_WEBCAMS_API_KEY"
       },
@@ -148,9 +148,9 @@ app.get("/api/cameras/windy/clusters", async (req, res) => {
   }
 });
 
-async function findCameraById(id) {
+async function findCameraById(id, apiKey = "") {
   if (id.startsWith("windy-")) {
-    return await getWindyCamera(id);
+    return await getWindyCamera(id, { apiKey });
   }
   if (id.startsWith("caltrans-")) {
     const all = await getAllCaltrans();
@@ -172,7 +172,7 @@ app.post("/api/cameras/probe", async (req, res) => {
     for (const raw of ids) {
       const id = String(raw || "");
       if (!id || id.length > 120) continue;
-      const camera = await findCameraById(id);
+      const camera = await findCameraById(id, requestWindyKey(req));
       if (camera) cameras.push(camera);
     }
     res.setHeader("Cache-Control", "no-store");
@@ -188,7 +188,7 @@ app.post("/api/cameras/probe", async (req, res) => {
 app.get("/api/camera/:id/probe", async (req, res) => {
   try {
     const id = String(req.params.id || "");
-    const camera = await findCameraById(id);
+    const camera = await findCameraById(id, requestWindyKey(req));
     if (!camera) return sendError(res, new Error("Camera not found"), 404);
     res.setHeader("Cache-Control", "no-store");
     res.json({
@@ -203,7 +203,7 @@ app.get("/api/camera/:id/probe", async (req, res) => {
 app.get("/api/camera/:id", async (req, res) => {
   const id = String(req.params.id || "");
   try {
-    const camera = await findCameraById(id);
+    const camera = await findCameraById(id, requestWindyKey(req));
     if (!camera) return sendError(res, new Error("Camera not found"), 404);
     if (id.startsWith("windy-")) res.setHeader("Cache-Control", "no-store");
     return res.json({ status: "ok", camera });

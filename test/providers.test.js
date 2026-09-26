@@ -5,6 +5,8 @@ import { parseCaltrans, safeCaltransMediaUrl } from "../server/providers/caltran
 import { normalizeWindy } from "../server/providers/windy.js";
 import { customCamerasFromEnv } from "../server/providers/custom.js";
 import { app, parseBbox } from "../server/index.js";
+import { classifyCameraImage } from "../server/camera-health.js";
+import sharp from "sharp";
 
 test("Caltrans parser mirrors Jarvis allowlisted in-service behavior", () => {
   const payload = {
@@ -130,6 +132,57 @@ test("custom public cameras require coordinates and public HTTP(S) media", () =>
   ]));
   assert.equal(cameras.length, 1);
   assert.equal(cameras[0].id, "custom-demo");
+});
+
+test("Caltrans-style unavailable placeholder is detected conservatively", async () => {
+  const placeholder = await sharp({
+    create: {
+      width: 640,
+      height: 400,
+      channels: 3,
+      background: { r: 255, g: 255, b: 255 }
+    }
+  })
+    .composite([
+      {
+        input: Buffer.from(
+          '<svg width="640" height="400"><text x="85" y="190" font-size="64" font-family="Arial" font-weight="700" fill="rgb(0,20,140)">Temporarily</text><text x="95" y="270" font-size="64" font-family="Arial" font-weight="700" fill="rgb(0,20,140)">Unavailable</text></svg>'
+        ),
+        top: 0,
+        left: 0
+      }
+    ])
+    .jpeg()
+    .toBuffer();
+
+  const result = await classifyCameraImage(placeholder);
+  assert.equal(result.placeholder_likely, true);
+  assert.ok(result.white_fraction > 0.72);
+});
+
+test("ordinary colorful camera-like image is not classified as placeholder", async () => {
+  const image = await sharp({
+    create: {
+      width: 640,
+      height: 400,
+      channels: 3,
+      background: { r: 90, g: 130, b: 150 }
+    }
+  })
+    .composite([
+      {
+        input: Buffer.from(
+          '<svg width="640" height="400"><rect y="220" width="640" height="180" fill="rgb(70,70,70)"/><rect y="280" width="640" height="6" fill="rgb(245,210,80)"/><circle cx="200" cy="270" r="30" fill="rgb(210,40,30)"/><circle cx="450" cy="315" r="25" fill="rgb(30,60,200)"/></svg>'
+        ),
+        top: 0,
+        left: 0
+      }
+    ])
+    .jpeg()
+    .toBuffer();
+
+  const result = await classifyCameraImage(image);
+  assert.equal(result.placeholder_likely, false);
 });
 
 test("bbox parser rejects wrapping or inverted bounds", () => {

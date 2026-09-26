@@ -13,8 +13,9 @@ The point of this project is verification, not inference: if Jarvis says a publi
 - A published still/stream does **not** prove a capture time or that the view is currently live.
 
 ### Windy Webcams API v3
-- Uses the same optional `JARVIS_WINDY_WEBCAMS_API_KEY` environment variable as Jarvis.
-- The key remains server-side and is never sent to the browser.
+- Paste your Windy key directly into the **Windy Webcams API key** field in the website header.
+- The key is stored only in that browser's local storage and sent to the local Worldwide-Cams server only on API requests that may need Windy. The server does not persist or echo it.
+- `JARVIS_WINDY_WEBCAMS_API_KEY` remains an optional server-side fallback for unattended/local-server use.
 - At globe/continent scale the UI uses Windy's map-cluster endpoint; zooming in resolves individual webcams in the visible bounding box.
 - Free/professional API listing limits are surfaced honestly. The app does not claim a complete worldwide individual-camera inventory when the provider/API tier cannot supply one.
 - Windy images link back to the provider and include the required attribution.
@@ -45,10 +46,6 @@ Requires Node.js 20+.
 
 ```bash
 npm install
-
-# Optional: the same Windy key used by Jarvis
-# PowerShell:
-$env:JARVIS_WINDY_WEBCAMS_API_KEY = "<your key>"
 
 npm run dev
 ```

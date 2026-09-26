@@ -15,6 +15,7 @@ const els = {
   detail: document.querySelector("#camera-detail"),
   closeDetail: document.querySelector("#close-detail"),
   detailProvider: document.querySelector("#detail-provider"),
+  detailAvailability: document.querySelector("#detail-availability"),
   detailTitle: document.querySelector("#detail-title"),
   detailPlace: document.querySelector("#detail-place"),
   detailId: document.querySelector("#detail-id"),
@@ -100,7 +101,8 @@ function cameraFeature(camera) {
       id: camera.id,
       title: camera.title,
       provider: camera.provider,
-      provider_kind: camera.provider_kind
+      provider_kind: camera.provider_kind,
+      availability: camera.availability || "unknown"
     }
   };
 }
@@ -138,7 +140,12 @@ function updateWindyOverview(rows) {
 function addCameras(rows) {
   for (const camera of rows || []) {
     if (!camera?.id || !Number.isFinite(camera.latitude) || !Number.isFinite(camera.longitude)) continue;
-    cameras.set(camera.id, camera);
+    const previous = cameras.get(camera.id);
+    cameras.set(camera.id, {
+      ...camera,
+      availability: camera.availability || previous?.availability || "unknown",
+      availability_probe: camera.availability_probe || previous?.availability_probe || null
+    });
   }
   updateCameraSource();
 }
@@ -149,6 +156,56 @@ function apiJson(url, signal) {
     if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
     return payload;
   });
+}
+
+function apiPostJson(url, body) {
+  return fetch(url, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  }).then(async (response) => {
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+    return payload;
+  });
+}
+
+function applyProbe(probe) {
+  const camera = probe?.id ? cameras.get(probe.id) : null;
+  if (!camera) return;
+  camera.availability = probe.status || "unknown";
+  camera.availability_probe = probe;
+  cameras.set(camera.id, camera);
+  updateCameraSource();
+
+  if (selectedCamera?.id === camera.id) {
+    selectedCamera = camera;
+    renderAvailability(camera);
+  }
+}
+
+function renderAvailability(camera) {
+  const probe = camera?.availability_probe;
+  const status = camera?.availability || "unknown";
+  els.detailAvailability.className = "availability " + status;
+
+  if (status === "working") {
+    els.detailAvailability.textContent = "Working now";
+    return;
+  }
+  if (status === "unavailable") {
+    els.detailAvailability.textContent =
+      probe?.reason === "provider_placeholder" ? "Unavailable placeholder" : "Unavailable now";
+    return;
+  }
+  if (status === "checking") {
+    els.detailAvailability.textContent = "Checking…";
+    return;
+  }
+  els.detailAvailability.textContent = "Unverified";
 }
 
 function normalizedLng(value) {
@@ -396,6 +453,7 @@ function selectCamera(camera, { fly = false } = {}) {
   els.detail.hidden = false;
 
   els.detailProvider.textContent = camera.provider || "Public camera";
+  renderAvailability(camera);
   els.detailTitle.textContent = camera.title || camera.id;
   els.detailPlace.textContent = camera.nearby_place || "Provider-reported camera point";
   els.detailId.textContent = camera.id;
@@ -419,6 +477,7 @@ function selectCamera(camera, { fly = false } = {}) {
   els.showStill.disabled = !camera.image_url;
   els.showStream.disabled = !(camera.stream_url || camera.player_url);
   showStill();
+  probeSelectedCamera();
 
   if (fly) {
     map.flyTo({
@@ -453,6 +512,92 @@ function closeDetail() {
   destroyMedia();
   els.detail.hidden = true;
   els.emptyPanel.hidden = false;
+}
+
+async function probeSelectedCamera({ force = false } = {}) {
+  if (!selectedCamera) return;
+  const id = selectedCamera.id;
+  selectedCamera.availability = "checking";
+  cameras.set(id, selectedCamera);
+  renderAvailability(selectedCamera);
+  updateCameraSource();
+
+  try {
+    const payload = await apiJson(
+      `/api/camera/${encodeURIComponent(id)}/probe${force ? "?force=1" : ""}`
+    );
+    applyProbe(payload.probe);
+  } catch (error) {
+    const camera = cameras.get(id);
+    if (camera) {
+      camera.availability = "unknown";
+      camera.availability_probe = {
+        id,
+        status: "unknown",
+        reason: "probe_request_failed",
+        error: error?.message || String(error)
+      };
+      cameras.set(id, camera);
+      if (selectedCamera?.id === id) {
+        selectedCamera = camera;
+        renderAvailability(camera);
+      }
+      updateCameraSource();
+    }
+  }
+}
+
+function withinBounds(camera, bounds) {
+  const lat = camera.latitude;
+  const lng = camera.longitude;
+  if (lat < bounds.getSouth() || lat > bounds.getNorth()) return false;
+  const west = normalizedLng(bounds.getWest());
+  const east = normalizedLng(bounds.getEast());
+  const value = normalizedLng(lng);
+  return east >= west ? value >= west && value <= east : value >= west || value <= east;
+}
+
+async function probeVisibleCaltrans() {
+  if (map.getZoom() < 5.5) return;
+
+  const bounds = map.getBounds();
+  const center = map.getCenter();
+  const candidates = [...cameras.values()]
+    .filter((camera) =>
+      camera.provider_kind === "caltrans" &&
+      (camera.availability || "unknown") === "unknown" &&
+      withinBounds(camera, bounds)
+    )
+    .sort((a, b) => {
+      const da = Math.hypot(a.latitude - center.lat, normalizedLng(a.longitude - center.lng));
+      const db = Math.hypot(b.latitude - center.lat, normalizedLng(b.longitude - center.lng));
+      return da - db;
+    })
+    .slice(0, 40);
+
+  if (!candidates.length) return;
+
+  for (const camera of candidates) {
+    camera.availability = "checking";
+    cameras.set(camera.id, camera);
+  }
+  updateCameraSource();
+
+  try {
+    const payload = await apiPostJson("/api/cameras/probe", {
+      ids: candidates.map((camera) => camera.id)
+    });
+    for (const probe of payload.probes || []) applyProbe(probe);
+  } catch {
+    for (const camera of candidates) {
+      const current = cameras.get(camera.id);
+      if (current && current.availability === "checking") {
+        current.availability = "unknown";
+        cameras.set(current.id, current);
+      }
+    }
+    updateCameraSource();
+  }
 }
 
 function findLoadedCamera(query) {
@@ -498,14 +643,26 @@ map.on("load", async () => {
     paint: {
       "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 2.2, 6, 4.0, 12, 5.5],
       "circle-color": [
-        "match",
-        ["get", "provider_kind"],
-        "caltrans", "#59f0bf",
-        "windy", "#62d5ff",
-        "custom", "#ffca66",
-        "#c6d4dc"
+        "case",
+        ["==", ["get", "availability"], "unavailable"], "#59656e",
+        ["==", ["get", "availability"], "checking"], "#c8b36b",
+        [
+          "match",
+          ["get", "provider_kind"],
+          "caltrans", "#59f0bf",
+          "windy", "#62d5ff",
+          "custom", "#ffca66",
+          "#c6d4dc"
+        ]
       ],
-      "circle-opacity": 0.95
+      "circle-opacity": [
+        "match",
+        ["get", "availability"],
+        "unavailable", 0.38,
+        "checking", 0.72,
+        "working", 1.0,
+        0.72
+      ]
     }
   });
 
@@ -589,13 +746,17 @@ map.on("load", async () => {
 
   await loadStaticProviders();
   await loadWindyForView({ force: true });
+  await probeVisibleCaltrans();
 });
 
 let moveTimer = null;
 map.on("moveend", () => {
   updateCoverageLabel();
   clearTimeout(moveTimer);
-  moveTimer = setTimeout(() => loadWindyForView(), 250);
+  moveTimer = setTimeout(async () => {
+    await loadWindyForView();
+    await probeVisibleCaltrans();
+  }, 250);
 });
 
 els.resetView.addEventListener("click", () => {
@@ -619,7 +780,10 @@ els.searchForm.addEventListener("submit", (event) => {
 els.closeDetail.addEventListener("click", closeDetail);
 els.showStill.addEventListener("click", showStill);
 els.showStream.addEventListener("click", showStream);
-els.refreshCamera.addEventListener("click", refreshSelectedCamera);
+els.refreshCamera.addEventListener("click", async () => {
+  await refreshSelectedCamera();
+  await probeSelectedCamera({ force: true });
+});
 
 els.image.addEventListener("click", () => {
   if (!selectedCamera || selectedCamera.provider_kind !== "windy") return;

@@ -11,8 +11,10 @@ import {
   windyConfigured
 } from "./providers/windy.js";
 import { customCamerasFromEnv } from "./providers/custom.js";
+import { probeCamera, probeMany } from "./camera-health.js";
 
 const app = express();
+app.use(express.json({ limit: "64kb" }));
 const port = Number(process.env.PORT || 8787);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -141,25 +143,65 @@ app.get("/api/cameras/windy/clusters", async (req, res) => {
   }
 });
 
+async function findCameraById(id) {
+  if (id.startsWith("windy-")) {
+    return await getWindyCamera(id);
+  }
+  if (id.startsWith("caltrans-")) {
+    const all = await getAllCaltrans();
+    return all.cameras.find((item) => item.id === id) || null;
+  }
+  if (id.startsWith("custom-")) {
+    return customCamerasFromEnv().find((item) => item.id === id) || null;
+  }
+  return null;
+}
+
+app.post("/api/cameras/probe", async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length || ids.length > 50) {
+      return sendError(res, new Error("ids must contain 1–50 camera IDs"));
+    }
+    const cameras = [];
+    for (const raw of ids) {
+      const id = String(raw || "");
+      if (!id || id.length > 120) continue;
+      const camera = await findCameraById(id);
+      if (camera) cameras.push(camera);
+    }
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      status: "ok",
+      probes: await probeMany(cameras)
+    });
+  } catch (error) {
+    sendError(res, error, 502);
+  }
+});
+
+app.get("/api/camera/:id/probe", async (req, res) => {
+  try {
+    const id = String(req.params.id || "");
+    const camera = await findCameraById(id);
+    if (!camera) return sendError(res, new Error("Camera not found"), 404);
+    res.setHeader("Cache-Control", "no-store");
+    res.json({
+      status: "ok",
+      probe: await probeCamera(camera, { force: req.query.force === "1" })
+    });
+  } catch (error) {
+    sendError(res, error, 502);
+  }
+});
+
 app.get("/api/camera/:id", async (req, res) => {
   const id = String(req.params.id || "");
   try {
-    if (id.startsWith("windy-")) {
-      res.setHeader("Cache-Control", "no-store");
-      return res.json({ status: "ok", camera: await getWindyCamera(id) });
-    }
-    if (id.startsWith("caltrans-")) {
-      const all = await getAllCaltrans();
-      const camera = all.cameras.find((item) => item.id === id);
-      if (!camera) return sendError(res, new Error("Caltrans camera not found"), 404);
-      return res.json({ status: "ok", camera });
-    }
-    if (id.startsWith("custom-")) {
-      const camera = customCamerasFromEnv().find((item) => item.id === id);
-      if (!camera) return sendError(res, new Error("Custom camera not found"), 404);
-      return res.json({ status: "ok", camera });
-    }
-    return sendError(res, new Error("Unknown camera ID"), 404);
+    const camera = await findCameraById(id);
+    if (!camera) return sendError(res, new Error("Camera not found"), 404);
+    if (id.startsWith("windy-")) res.setHeader("Cache-Control", "no-store");
+    return res.json({ status: "ok", camera });
   } catch (error) {
     sendError(res, error, 502);
   }

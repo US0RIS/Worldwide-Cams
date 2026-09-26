@@ -20,10 +20,24 @@
           </div>
         </div>
 
-        <div class="status-strip" aria-live="polite">
-          <span id="provider-status" class="status-pill">Loading providers…</span>
-          <span id="camera-count" class="status-pill">0 loaded cameras</span>
-          <span id="coverage-status" class="status-pill subtle">Coverage pending</span>
+        <div class="header-tools">
+          <div class="windy-key-control" aria-label="Windy Webcams credential">
+            <input
+              id="windy-key-input"
+              type="password"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Windy Webcams API key"
+              aria-label="Windy Webcams API key"
+            />
+            <button id="windy-key-save" type="button">Save Windy Key</button>
+            <button id="windy-key-clear" type="button" class="secondary-button" hidden>Clear</button>
+          </div>
+          <div class="status-strip" aria-live="polite">
+            <span id="provider-status" class="status-pill">Loading providers…</span>
+            <span id="camera-count" class="status-pill">0 loaded cameras</span>
+            <span id="coverage-status" class="status-pill subtle">Coverage pending</span>
+          </div>
         </div>
       </header>
 

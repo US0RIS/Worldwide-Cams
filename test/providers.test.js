@@ -1,0 +1,153 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import { parseCaltrans, safeCaltransMediaUrl } from "../server/providers/caltrans.js";
+import { normalizeWindy } from "../server/providers/windy.js";
+import { customCamerasFromEnv } from "../server/providers/custom.js";
+import { app, parseBbox } from "../server/index.js";
+
+test("Caltrans parser mirrors Jarvis allowlisted in-service behavior", () => {
+  const payload = {
+    data: [
+      {
+        cctv: {
+          index: "196",
+          inService: "true",
+          location: {
+            locationName: "I-5 Test",
+            nearbyPlace: "Los Angeles",
+            latitude: "34.05",
+            longitude: "-118.25",
+            direction: "N"
+          },
+          imageData: {
+            static: {
+              currentImageURL: "https://cwwp2.dot.ca.gov/data/d7/cctv/image.jpg"
+            },
+            streamingVideoURL: "https://wzmedia.dot.ca.gov/test/playlist.m3u8"
+          }
+        }
+      },
+      {
+        cctv: {
+          index: "bad-host",
+          inService: "true",
+          location: {
+            locationName: "Bad",
+            latitude: "34",
+            longitude: "-118"
+          },
+          imageData: {
+            static: {
+              currentImageURL: "https://example.com/not-jarvis-camera.jpg"
+            }
+          }
+        }
+      },
+      {
+        cctv: {
+          index: "offline",
+          inService: "false",
+          location: {
+            locationName: "Offline",
+            latitude: "34",
+            longitude: "-118"
+          },
+          imageData: {
+            static: {
+              currentImageURL: "https://cwwp2.dot.ca.gov/offline.jpg"
+            }
+          }
+        }
+      }
+    ]
+  };
+
+  const cameras = parseCaltrans(payload, 7);
+  assert.equal(cameras.length, 1);
+  assert.equal(cameras[0].id, "caltrans-d7-196");
+  assert.equal(cameras[0].provider_kind, "caltrans");
+  assert.equal(cameras[0].stream_url, "https://wzmedia.dot.ca.gov/test/playlist.m3u8");
+});
+
+test("Caltrans media URL rejects non-government or credentialed URLs", () => {
+  assert.equal(safeCaltransMediaUrl("https://example.com/cam.jpg"), "");
+  assert.equal(safeCaltransMediaUrl("http://cwwp2.dot.ca.gov/cam.jpg"), "");
+  assert.equal(safeCaltransMediaUrl("https://user:pass@cwwp2.dot.ca.gov/cam.jpg"), "");
+  assert.match(safeCaltransMediaUrl("https://cwwp2.dot.ca.gov/cam.jpg"), /^https:/);
+});
+
+test("Windy normalizer exposes provider image/player without inventing stream URL", () => {
+  const camera = normalizeWindy({
+    webcamId: 12345,
+    status: "active",
+    title: "Mountain Camera",
+    lastUpdatedOn: "2026-09-26T20:00:00.000Z",
+    location: {
+      latitude: 46.5,
+      longitude: 7.9,
+      city: "Example",
+      country: "CH"
+    },
+    images: {
+      current: {
+        preview: "https://images.windy.com/example.jpg"
+      }
+    },
+    player: {
+      live: {
+        available: true,
+        embed: "https://webcams.windy.com/webcams/public/embed/player/12345"
+      }
+    },
+    urls: {
+      detail: "https://www.windy.com/webcams/12345"
+    }
+  });
+
+  assert.ok(camera);
+  assert.equal(camera.id, "windy-12345");
+  assert.equal(camera.stream_url, "");
+  assert.match(camera.image_url, /^https:/);
+  assert.match(camera.player_url, /^https:/);
+  assert.equal(camera.capture_time, null);
+});
+
+test("custom public cameras require coordinates and public HTTP(S) media", () => {
+  const cameras = customCamerasFromEnv(JSON.stringify([
+    {
+      id: "demo",
+      title: "Demo",
+      latitude: 1,
+      longitude: 2,
+      image_url: "https://example.org/cam.jpg"
+    },
+    {
+      id: "no-media",
+      latitude: 1,
+      longitude: 2
+    }
+  ]));
+  assert.equal(cameras.length, 1);
+  assert.equal(cameras[0].id, "custom-demo");
+});
+
+test("bbox parser rejects wrapping or inverted bounds", () => {
+  assert.deepEqual(parseBbox("40,-70,30,-80"), [40, -70, 30, -80]);
+  assert.throws(() => parseBbox("30,-70,40,-80"));
+  assert.throws(() => parseBbox("40,-170,30,170"));
+});
+
+test("status API reports provider configuration without exposing secrets", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  await new Promise((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  const response = await fetch("http://127.0.0.1:" + address.port + "/api/status");
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.status, "ok");
+  assert.equal(payload.providers.caltrans.configured, true);
+  assert.equal(typeof payload.providers.windy.configured, "boolean");
+  assert.equal(JSON.stringify(payload).includes("X-Windy-API-Key"), false);
+});

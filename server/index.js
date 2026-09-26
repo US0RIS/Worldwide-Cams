@@ -1,5 +1,6 @@
 import express from "express";
 import path from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { getAllCaltrans } from "./providers/caltrans.js";
@@ -29,7 +30,7 @@ app.use((req, res, next) => {
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: https:",
       "frame-src https://*.windy.com https://windy.com",
-      "connect-src 'self' https://tile.openstreetmap.org",
+      "connect-src 'self' https:",
       "font-src 'self' data:",
       "worker-src 'self' blob:"
     ].join("; ")
@@ -39,21 +40,21 @@ app.use((req, res, next) => {
 
 function finiteNumber(raw, name) {
   const value = Number(raw);
-  if (!Number.isFinite(value)) throw new Error(`${name} must be finite`);
+  if (!Number.isFinite(value)) throw new Error(name + " must be finite");
   return value;
 }
 
 function parseBbox(raw) {
   const parts = String(raw || "").split(",");
   if (parts.length !== 4) throw new Error("bbox must be north,east,south,west");
-  const [north, east, south, west] = parts.map((value, index) =>
-    finiteNumber(value, ["north", "east", "south", "west"][index])
-  );
+  const labels = ["north", "east", "south", "west"];
+  const values = parts.map((value, index) => finiteNumber(value, labels[index]));
+  const [north, east, south, west] = values;
   if (north <= south || north > 90 || south < -90 ||
       east <= west || east > 180 || west < -180) {
     throw new Error("Invalid non-wrapping bbox");
   }
-  return [north, east, south, west];
+  return values;
 }
 
 function sendError(res, error, status = 400) {
@@ -164,19 +165,22 @@ app.get("/api/camera/:id", async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(root, "dist"), {
+const dist = path.join(root, "dist");
+if (existsSync(dist)) {
+  app.use(express.static(dist, {
     maxAge: "1h",
     index: false
   }));
-  app.get("*splat", (_req, res) => {
-    res.sendFile(path.join(root, "dist", "index.html"));
+  app.use((req, res, next) => {
+    if (req.method !== "GET" || req.path.startsWith("/api/")) return next();
+    res.sendFile(path.join(dist, "index.html"));
   });
 }
 
-if (process.env.NODE_ENV !== "test") {
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
+if (invokedPath && invokedPath === fileURLToPath(import.meta.url)) {
   app.listen(port, "0.0.0.0", () => {
-    console.log(`Worldwide Cams listening on http://localhost:${port}`);
+    console.log("Worldwide Cams listening on http://localhost:" + port);
   });
 }
 

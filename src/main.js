@@ -67,6 +67,16 @@ function windyHeaders() {
   return key ? { "X-Windy-API-Key": key } : {};
 }
 
+function requestMayNeedWindy(url) {
+  const value = String(url || "");
+  return (
+    value === "/api/status" ||
+    value.startsWith("/api/cameras/windy") ||
+    value.startsWith("/api/camera/windy-") ||
+    value === "/api/cameras/probe"
+  );
+}
+
 const cameras = new Map();
 let providerStatus = null;
 let selectedCamera = null;
@@ -195,7 +205,7 @@ function apiJson(url, signal) {
     signal,
     headers: {
       Accept: "application/json",
-      ...windyHeaders()
+      ...(requestMayNeedWindy(url) ? windyHeaders() : {})
     }
   }).then(async (response) => {
     const payload = await response.json().catch(() => ({}));
@@ -210,7 +220,7 @@ function apiPostJson(url, body) {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      ...windyHeaders()
+      ...(requestMayNeedWindy(url) ? windyHeaders() : {})
     },
     body: JSON.stringify(body)
   }).then(async (response) => {

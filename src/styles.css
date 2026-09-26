@@ -558,3 +558,58 @@ a {
   background: #20282e;
   border-color: #47535c;
 }
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.windy-key-control {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid #274558;
+  background: #0b1b27;
+}
+
+.windy-key-control input {
+  width: 190px;
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid #223d50;
+  background: #07141d;
+  color: var(--text);
+  padding: 0 10px;
+}
+
+.windy-key-control button {
+  min-height: 38px;
+  padding: 0 11px;
+  font-size: 12px;
+}
+
+.secondary-button {
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .header-tools {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .windy-key-control {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .windy-key-control input {
+    flex: 1 1 220px;
+    width: auto;
+  }
+}

@@ -510,3 +510,51 @@ a {
     flex-direction: column;
   }
 }
+
+.detail-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+
+.detail-kicker .eyebrow {
+  margin-bottom: 0;
+}
+
+.availability {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid #2d4352;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.availability.unknown {
+  color: #b6c6cf;
+  background: #12222c;
+}
+
+.availability.checking {
+  color: #d9c68a;
+  background: #2b2617;
+  border-color: #665a2e;
+}
+
+.availability.working {
+  color: #9ff5d3;
+  background: #0f2c24;
+  border-color: #2f6f5b;
+}
+
+.availability.unavailable {
+  color: #c2cbd1;
+  background: #20282e;
+  border-color: #47535c;
+}

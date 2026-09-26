@@ -3,17 +3,17 @@ const MAX_BYTES = 2_500_000;
 const CACHE_TTL_MS = 60_000;
 const cache = new Map();
 
-export function windyConfigured() {
-  return Boolean(String(process.env.JARVIS_WINDY_WEBCAMS_API_KEY || "").trim());
+function resolvedKey(requestKey = "") {
+  const direct = String(requestKey || "").trim();
+  if (direct) return direct;
+  return String(process.env.JARVIS_WINDY_WEBCAMS_API_KEY || "").trim();
 }
 
-function key() {
-  const value = String(process.env.JARVIS_WINDY_WEBCAMS_API_KEY || "").trim();
-  if (!value) throw new Error("Windy Webcams API key is not configured");
-  return value;
+export function windyConfigured(requestKey = "") {
+  return Boolean(resolvedKey(requestKey));
 }
 
-async function fetchJsonBounded(url, fetchImpl = fetch) {
+async function fetchJsonBounded(url, fetchImpl = fetch, requestKey = "") {
   const cacheKey = url.toString();
   const cached = cache.get(cacheKey);
   const now = Date.now();
@@ -21,7 +21,7 @@ async function fetchJsonBounded(url, fetchImpl = fetch) {
 
   const response = await fetchImpl(url, {
     headers: {
-      "X-Windy-API-Key": key(),
+      "X-Windy-API-Key": resolvedKey(requestKey),
       Accept: "application/json"
     },
     redirect: "error",
@@ -114,8 +114,11 @@ function validateBbox(bbox) {
   return values;
 }
 
-export async function listWindyByBbox(bbox, { max = 500, fetchImpl = fetch } = {}) {
-  if (!windyConfigured()) {
+export async function listWindyByBbox(
+  bbox,
+  { max = 500, fetchImpl = fetch, apiKey = "" } = {}
+) {
+  if (!windyConfigured(apiKey)) {
     return {
       status: "not_configured",
       provider: "Windy Webcams v3",
@@ -140,7 +143,7 @@ export async function listWindyByBbox(bbox, { max = 500, fetchImpl = fetch } = {
     url.searchParams.set("sortKey", "popularity");
     url.searchParams.set("sortDirection", "desc");
 
-    const payload = await fetchJsonBounded(url, fetchImpl);
+    const payload = await fetchJsonBounded(url, fetchImpl, apiKey);
     const rows = Array.isArray(payload?.webcams) ? payload.webcams : [];
     if (Number.isInteger(payload?.total)) total = payload.total;
     for (const row of rows) {
@@ -165,8 +168,12 @@ export async function listWindyByBbox(bbox, { max = 500, fetchImpl = fetch } = {
   };
 }
 
-export async function listWindyClusters(bounds, zoom, { fetchImpl = fetch } = {}) {
-  if (!windyConfigured()) {
+export async function listWindyClusters(
+  bounds,
+  zoom,
+  { fetchImpl = fetch, apiKey = "" } = {}
+) {
+  if (!windyConfigured(apiKey)) {
     return {
       status: "not_configured",
       provider: "Windy Webcams v3",
@@ -183,7 +190,7 @@ export async function listWindyClusters(bounds, zoom, { fetchImpl = fetch } = {}
   url.searchParams.set("zoom", String(z));
   url.searchParams.set("include", "images,location,urls,player");
 
-  const payload = await fetchJsonBounded(url, fetchImpl);
+  const payload = await fetchJsonBounded(url, fetchImpl, apiKey);
   const rows = Array.isArray(payload) ? payload : Array.isArray(payload?.webcams) ? payload.webcams : [];
   return {
     status: "ok",
@@ -195,14 +202,14 @@ export async function listWindyClusters(bounds, zoom, { fetchImpl = fetch } = {}
   };
 }
 
-export async function getWindyCamera(id, { fetchImpl = fetch } = {}) {
+export async function getWindyCamera(id, { fetchImpl = fetch, apiKey = "" } = {}) {
   const match = /^windy-([1-9][0-9]{0,19})$/.exec(String(id || ""));
   if (!match) throw new Error("Invalid Windy camera ID");
-  if (!windyConfigured()) throw new Error("Windy Webcams API key is not configured");
+  if (!windyConfigured(apiKey)) throw new Error("Windy Webcams API key is not configured");
 
   const url = new URL(`${API}/webcams/${match[1]}`);
   url.searchParams.set("include", "images,location,urls,player");
-  const payload = await fetchJsonBounded(url, fetchImpl);
+  const payload = await fetchJsonBounded(url, fetchImpl, apiKey);
   const normalized = normalizeWindy(payload);
   if (!normalized || normalized.id !== id) throw new Error("Windy camera unavailable");
   return normalized;

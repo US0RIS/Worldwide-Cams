@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Worldwide Cams — independently inspect the same cataloged public cameras available to Jarvis World Armor."
+    />
+    <title>Worldwide Cams</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">◎</div>
+          <div>
+            <h1>Worldwide Cams</h1>
+            <p>Public camera verification surface for Jarvis</p>
+          </div>
+        </div>
+
+        <div class="status-strip" aria-live="polite">
+          <span id="provider-status" class="status-pill">Loading providers…</span>
+          <span id="camera-count" class="status-pill">0 loaded cameras</span>
+          <span id="coverage-status" class="status-pill subtle">Coverage pending</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="map-shell" aria-label="Worldwide public camera map">
+          <div class="map-toolbar">
+            <form id="search-form" class="search" role="search">
+              <label class="sr-only" for="search-input">Find a loaded camera</label>
+              <input id="search-input" type="search" placeholder="Find camera by name or ID" autocomplete="off" />
+              <button type="submit">Find</button>
+            </form>
+
+            <div class="toolbar-actions">
+              <button id="reset-view" type="button">Globe</button>
+              <button id="refresh-view" type="button">Refresh view</button>
+            </div>
+          </div>
+
+          <div id="map" class="map"></div>
+
+          <div class="legend" aria-label="Map legend">
+            <span><i class="dot caltrans"></i>Caltrans</span>
+            <span><i class="dot windy"></i>Windy</span>
+            <span><i class="dot custom"></i>Custom public</span>
+            <span><i class="dot cluster"></i>Provider cluster</span>
+          </div>
+
+          <div id="map-message" class="map-message" aria-live="polite"></div>
+        </section>
+
+        <aside id="camera-panel" class="camera-panel" aria-label="Selected camera">
+          <div class="empty-panel" id="empty-panel">
+            <div class="empty-icon">◉</div>
+            <h2>Select a camera</h2>
+            <p>
+              Click a camera dot to inspect exactly what the provider says exists there and view the
+              publisher's current image or supported player.
+            </p>
+            <div class="truth-note">
+              A map marker is evidence of a provider record — not proof of capture time, field of view,
+              an incident, or continuous live video.
+            </div>
+          </div>
+
+          <div id="camera-detail" class="camera-detail" hidden>
+            <div class="detail-heading">
+              <div>
+                <span id="detail-provider" class="eyebrow"></span>
+                <h2 id="detail-title"></h2>
+                <p id="detail-place" class="detail-place"></p>
+              </div>
+              <button id="close-detail" class="icon-button" type="button" aria-label="Close camera detail">×</button>
+            </div>
+
+            <div id="media-wrap" class="media-wrap">
+              <div id="media-loading" class="media-loading">Loading camera media…</div>
+              <img id="camera-image" alt="" hidden />
+              <video id="camera-video" controls playsinline muted hidden></video>
+              <iframe
+                id="camera-player"
+                title="Public camera player"
+                loading="lazy"
+                referrerpolicy="strict-origin-when-cross-origin"
+                allow="autoplay; fullscreen"
+                hidden
+              ></iframe>
+            </div>
+
+            <div class="media-actions">
+              <button id="show-still" type="button">Current still</button>
+              <button id="show-stream" type="button">Live/player</button>
+              <button id="refresh-camera" type="button">Refresh camera</button>
+            </div>
+
+            <dl class="metadata">
+              <div><dt>Camera ID</dt><dd id="detail-id"></dd></div>
+              <div><dt>Coordinates</dt><dd id="detail-coordinates"></dd></div>
+              <div><dt>Direction</dt><dd id="detail-direction"></dd></div>
+              <div><dt>Provider updated</dt><dd id="detail-updated"></dd></div>
+              <div><dt>Capture time</dt><dd id="detail-capture"></dd></div>
+            </dl>
+
+            <div id="detail-note" class="truth-note"></div>
+
+            <div class="source-links">
+              <a id="provider-link" target="_blank" rel="noopener noreferrer">Open provider page</a>
+              <a id="source-link" target="_blank" rel="noopener noreferrer">Provider documentation</a>
+            </div>
+
+            <p id="windy-attribution" class="attribution" hidden>
+              Webcams provided by
+              <a href="https://www.windy.com/" target="_blank" rel="noopener noreferrer">Windy.com</a>
+              ·
+              <a href="https://www.windy.com/webcams/add" target="_blank" rel="noopener noreferrer">add a webcam</a>
+            </p>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="footer">
+        <span>Basemap © OpenStreetMap contributors.</span>
+        <span>Camera points are provider-reported locations, not verified view cones.</span>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -140,6 +140,8 @@ Implemented:
 - official YouTube Data API request-scoped credential path;
 - currently-live + embeddable + syndicated geographic discovery;
 - persistent REVIEW candidate registry with <30-day metadata expiry;
+- resumable, quota-bounded global discovery grid with persistent cursor/state;
+- generic normalized provider registry for provider-agnostic camera lookup;
 - production admission gate;
 - manual visual/temporal review surface using supported YouTube playback;
 - accepted-camera production feed and live-status recheck;
@@ -149,7 +151,7 @@ Implemented:
 Not yet sufficient for release completion:
 - compliant automated visual classifier over actual live imagery;
 - automated temporal frame analysis;
-- broad resumable global discovery scheduler;
+- unattended scheduling of the resumable global discovery worker when a durable server credential is configured;
 - deduplication/failover graph;
 - provider-agnostic near/search/bestView API;
 - full adversarial real-world classifier corpus and acceptance run;

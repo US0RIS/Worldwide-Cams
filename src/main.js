@@ -1,6 +1,7 @@
 import maplibregl from "maplibre-gl";
 import Hls from "hls.js";
 import "./styles.css";
+import { initYouTubeUI, youtubeRequestHeaders } from "./youtube-ui.js";
 
 const els = {
   providerStatus: document.querySelector("#provider-status"),
@@ -9,6 +10,7 @@ const els = {
   windyKeyInput: document.querySelector("#windy-key-input"),
   windyKeySave: document.querySelector("#windy-key-save"),
   windyKeyClear: document.querySelector("#windy-key-clear"),
+  providerFilter: document.querySelector("#provider-filter"),
   mapMessage: document.querySelector("#map-message"),
   searchForm: document.querySelector("#search-form"),
   searchInput: document.querySelector("#search-input"),
@@ -151,11 +153,17 @@ function cameraFeature(camera) {
 function updateCameraSource() {
   const source = map.getSource("cameras");
   if (!source) return;
+  const filter = els.providerFilter?.value || "all";
+  const visible = [...cameras.values()].filter(
+    (camera) => filter === "all" || camera.provider_kind === filter
+  );
   source.setData({
     type: "FeatureCollection",
-    features: [...cameras.values()].map(cameraFeature)
+    features: visible.map(cameraFeature)
   });
-  els.cameraCount.textContent = `${cameras.size.toLocaleString()} loaded cameras`;
+  els.cameraCount.textContent = filter === "all"
+    ? `${cameras.size.toLocaleString()} loaded cameras`
+    : `${visible.length.toLocaleString()} shown · ${cameras.size.toLocaleString()} loaded`;
 }
 
 function updateWindyOverview(rows) {
@@ -205,7 +213,8 @@ function apiJson(url, signal) {
     signal,
     headers: {
       Accept: "application/json",
-      ...(requestMayNeedWindy(url) ? windyHeaders() : {})
+      ...(requestMayNeedWindy(url) ? windyHeaders() : {}),
+      ...youtubeRequestHeaders(url)
     }
   }).then(async (response) => {
     const payload = await response.json().catch(() => ({}));
@@ -220,7 +229,8 @@ function apiPostJson(url, body) {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      ...(requestMayNeedWindy(url) ? windyHeaders() : {})
+      ...(requestMayNeedWindy(url) ? windyHeaders() : {}),
+      ...youtubeRequestHeaders(url)
     },
     body: JSON.stringify(body)
   }).then(async (response) => {
@@ -293,18 +303,20 @@ function bboxParam(box) {
 }
 
 async function loadStaticProviders() {
-  const [statusResult, caltransResult, customResult] = await Promise.allSettled([
+  const [statusResult, caltransResult, customResult, youtubeResult] = await Promise.allSettled([
     apiJson("/api/status"),
     apiJson("/api/cameras/caltrans"),
-    apiJson("/api/cameras/custom")
+    apiJson("/api/cameras/custom"),
+    apiJson("/api/cameras/youtube")
   ]);
 
   if (statusResult.status === "fulfilled") {
     providerStatus = statusResult.value;
     const windy = providerStatus.providers?.windy?.configured;
-    els.providerStatus.textContent = windy
-      ? "Caltrans + Windy enabled"
-      : "Caltrans enabled · Windy key absent";
+    const youtube = providerStatus.providers?.youtube?.configured;
+    const enabled = ["Caltrans", windy ? "Windy" : "", youtube ? "YouTube discovery" : ""].filter(Boolean);
+    const missing = [!windy ? "Windy key absent" : "", !youtube ? "YouTube key absent" : ""].filter(Boolean);
+    els.providerStatus.textContent = enabled.join(" + ") + (missing.length ? " · " + missing.join(" · ") : "");
   } else {
     els.providerStatus.textContent = "Provider status unavailable";
   }
@@ -320,6 +332,10 @@ async function loadStaticProviders() {
 
   if (customResult.status === "fulfilled") {
     addCameras(customResult.value.cameras);
+  }
+
+  if (youtubeResult.status === "fulfilled") {
+    addCameras(youtubeResult.value.cameras);
   }
 
   updateCoverageLabel();
@@ -524,7 +540,15 @@ function selectCamera(camera, { fly = false } = {}) {
   els.windyAttribution.hidden = camera.provider_kind !== "windy";
 
   const providerUrl = camera.provider_detail_url || camera.source_url || camera.image_url || camera.stream_url;
-  setExternalLink(els.providerLink, providerUrl, camera.provider_kind === "windy" ? "Open Windy webcam page" : "Open provider page");
+  setExternalLink(
+    els.providerLink,
+    providerUrl,
+    camera.provider_kind === "windy"
+      ? "Open Windy webcam page"
+      : camera.provider_kind === "youtube"
+        ? "Open on YouTube"
+        : "Open provider page"
+  );
   setExternalLink(
     els.sourceLink,
     camera.source_url && camera.source_url !== providerUrl ? camera.source_url : "",
@@ -708,6 +732,7 @@ map.on("load", async () => {
           ["get", "provider_kind"],
           "caltrans", "#59f0bf",
           "windy", "#62d5ff",
+          "youtube", "#ff5b5b",
           "custom", "#ffca66",
           "#c6d4dc"
         ]
@@ -847,6 +872,16 @@ els.windyKeyInput.addEventListener("keydown", (event) => {
 
 renderWindyKeyState();
 
+initYouTubeUI({
+  map,
+  addCameras,
+  setMessage,
+  normalizedLng,
+  reloadProviders: loadStaticProviders
+});
+
+els.providerFilter.addEventListener("change", updateCameraSource);
+
 els.resetView.addEventListener("click", () => {
   map.flyTo({ center: [-18, 23], zoom: 1.35, bearing: 0, pitch: 0, duration: 900 });
 });
@@ -874,7 +909,7 @@ els.refreshCamera.addEventListener("click", async () => {
 });
 
 els.image.addEventListener("click", () => {
-  if (!selectedCamera || selectedCamera.provider_kind !== "windy") return;
+  if (!selectedCamera || !["windy", "youtube"].includes(selectedCamera.provider_kind)) return;
   const url = selectedCamera.provider_detail_url;
   if (url) window.open(url, "_blank", "noopener,noreferrer");
 });

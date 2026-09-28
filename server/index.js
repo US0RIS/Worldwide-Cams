@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 import { getAllCaltrans } from "./providers/caltrans.js";
 import {
-  getWindyCamera,
   listWindyByBbox,
   listWindyClusters,
   windyConfigured

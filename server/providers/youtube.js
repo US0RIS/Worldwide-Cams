@@ -186,7 +186,7 @@ export function normalizeYouTubeCandidate(video, searchContext = {}) {
     location_radius_km: location.location_radius_km ?? null,
     image_url: thumbnail,
     stream_url: "",
-    player_url: embeddable ? "https://www.youtube.com/embed/" + id + "?playsinline=1" : "",
+    player_url: embeddable ? "https://www.youtube-nocookie.com/embed/" + id + "?playsinline=1" : "",
     provider_detail_url: "https://www.youtube.com/watch?v=" + id,
     source_url: "https://developers.google.com/youtube/v3/docs",
     source_note:
@@ -201,6 +201,7 @@ export function normalizeYouTubeCandidate(video, searchContext = {}) {
     production_eligible: false,
     playback: embeddable ? "youtube_embed" : "youtube_watch",
     embeddable,
+    made_for_kids: status.madeForKids === true,
     currently_live: true,
     actual_start_time: live.actualStartTime || null,
     discovered_at: now,

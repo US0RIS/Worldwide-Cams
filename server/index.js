@@ -386,6 +386,7 @@ app.get("/api/youtube/diagnostics", async (_req, res) => {
     res.json({
       status: "ok",
       ...(await youtubeRegistryDiagnostics()),
+      global_discovery: await youtubeGlobalDiscoveryStatus(),
       derived_metrics_approved: youtubeDerivedMetricsApproved()
     });
   } catch (error) {

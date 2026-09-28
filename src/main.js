@@ -880,7 +880,15 @@ initYouTubeUI({
   reloadProviders: loadStaticProviders
 });
 
-els.providerFilter.addEventListener("change", updateCameraSource);
+els.providerFilter.addEventListener("change", () => {
+  updateCameraSource();
+  const filter = els.providerFilter.value;
+  if (!["all", "windy"].includes(filter)) {
+    updateWindyOverview([]);
+  } else {
+    loadWindyForView({ force: true });
+  }
+});
 
 els.resetView.addEventListener("click", () => {
   map.flyTo({ center: [-18, 23], zoom: 1.35, bearing: 0, pitch: 0, duration: 900 });

@@ -1,4 +1,5 @@
 const YOUTUBE_KEY_STORAGE = "worldwideCams.youtubeDataAPIKey";
+const YOUTUBE_CONSENT_STORAGE = "worldwideCams.youtubeTermsConsentAt";
 
 export function storedYouTubeKey() {
   return String(localStorage.getItem(YOUTUBE_KEY_STORAGE) || "").trim();
@@ -59,6 +60,7 @@ export function initYouTubeUI({
     keyInput: document.querySelector("#youtube-key-input"),
     keySave: document.querySelector("#youtube-key-save"),
     keyClear: document.querySelector("#youtube-key-clear"),
+    consent: document.querySelector("#youtube-consent"),
     discover: document.querySelector("#youtube-discover"),
     review: document.querySelector("#youtube-review"),
     reviewCount: document.querySelector("#youtube-review-count"),
@@ -91,8 +93,10 @@ export function initYouTubeUI({
       ? "YouTube key saved in this browser"
       : "YouTube Data API key";
     els.keySave.textContent = configured ? "Replace YouTube Key" : "Save YouTube Key";
+    const consented = Boolean(localStorage.getItem(YOUTUBE_CONSENT_STORAGE));
     els.keyClear.hidden = !configured;
-    els.discover.disabled = !configured;
+    els.consent.checked = consented;
+    els.discover.disabled = !configured || !consented;
   }
 
   async function updateReviewCount() {
@@ -263,6 +267,11 @@ export function initYouTubeUI({
       setMessage("Paste a YouTube Data API key first.");
       return;
     }
+    if (!els.consent.checked) {
+      setMessage("Agree to the Privacy Policy and YouTube Terms before enabling YouTube API features.");
+      return;
+    }
+    localStorage.setItem(YOUTUBE_CONSENT_STORAGE, new Date().toISOString());
     setStoredYouTubeKey(key);
     renderKeyState();
     setMessage("YouTube key saved in this browser. Testing provider status…");
@@ -272,9 +281,19 @@ export function initYouTubeUI({
 
   els.keyClear.addEventListener("click", async () => {
     setStoredYouTubeKey("");
+    localStorage.removeItem(YOUTUBE_CONSENT_STORAGE);
     renderKeyState();
     setMessage("Browser YouTube key cleared. Existing verified records remain local; live rechecks require the key.");
     await reloadProviders();
+  });
+
+  els.consent.addEventListener("change", () => {
+    if (!els.consent.checked) {
+      localStorage.removeItem(YOUTUBE_CONSENT_STORAGE);
+    } else if (storedYouTubeKey()) {
+      localStorage.setItem(YOUTUBE_CONSENT_STORAGE, new Date().toISOString());
+    }
+    renderKeyState();
   });
 
   els.keyInput.addEventListener("keydown", (event) => {

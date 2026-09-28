@@ -623,6 +623,8 @@ a {
 
 .youtube-key-control {
   border-color: #563337;
+  flex-wrap: wrap;
+  max-width: 520px;
 }
 
 .toolbar-actions select {
@@ -801,7 +803,7 @@ a {
 }
 
 .youtube-consent {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
   display: flex;
   align-items: center;
   gap: 6px;

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import { parseCaltrans, safeCaltransMediaUrl } from "../server/providers/caltrans.js";
 import { normalizeWindy, listWindyByBbox } from "../server/providers/windy.js";
+import { discoverYouTubeLive, normalizeYouTubeCandidate } from "../server/providers/youtube.js";
 import { customCamerasFromEnv } from "../server/providers/custom.js";
 import { app, parseBbox } from "../server/index.js";
 import { classifyCameraImage } from "../server/camera-health.js";
@@ -222,6 +223,114 @@ test("status API reports browser Windy key without echoing it", async (t) => {
   const payload = await response.json();
   assert.equal(payload.providers.windy.configured, true);
   assert.equal(JSON.stringify(payload).includes("browser-secret-test-key"), false);
+});
+
+test("YouTube candidate normalization never admits metadata-only discovery to production", () => {
+  const candidate = normalizeYouTubeCandidate({
+    id: "abcdefghijk",
+    snippet: {
+      title: "LIVE city webcam",
+      description: "A public live view",
+      channelId: "UCtest",
+      channelTitle: "City",
+      categoryId: "19",
+      liveBroadcastContent: "live",
+      thumbnails: {
+        high: { url: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg" }
+      }
+    },
+    status: {
+      privacyStatus: "public",
+      embeddable: true
+    },
+    liveStreamingDetails: {
+      actualStartTime: "2026-09-28T00:00:00Z"
+    },
+    recordingDetails: {
+      location: { latitude: 35.68, longitude: 139.76 }
+    }
+  });
+
+  assert.ok(candidate);
+  assert.equal(candidate.id, "youtube-abcdefghijk");
+  assert.equal(candidate.candidate_state, "REVIEW");
+  assert.equal(candidate.production_eligible, false);
+  assert.equal(candidate.verification.visual, "REQUIRED");
+  assert.equal(candidate.verification.temporal, "REQUIRED");
+  assert.match(candidate.player_url, /^https:\/\/www\.youtube\.com\/embed\//);
+});
+
+test("YouTube discovery uses official live geographic filters and keeps key out of result", async () => {
+  const seen = [];
+  const fetchImpl = async (url) => {
+    const target = new URL(url);
+    seen.push(target);
+    if (target.pathname.endsWith("/search")) {
+      return new Response(JSON.stringify({
+        items: [{ id: { videoId: "abcdefghijk" } }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (target.pathname.endsWith("/videos")) {
+      return new Response(JSON.stringify({
+        items: [{
+          id: "abcdefghijk",
+          snippet: {
+            title: "LIVE harbor webcam",
+            description: "Harbor",
+            channelId: "UCtest",
+            channelTitle: "Harbor Authority",
+            categoryId: "19",
+            liveBroadcastContent: "live",
+            thumbnails: {
+              high: { url: "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg" }
+            }
+          },
+          status: { privacyStatus: "public", embeddable: true },
+          liveStreamingDetails: { actualStartTime: "2026-09-28T00:00:00Z" },
+          recordingDetails: { location: { latitude: 34.0, longitude: -118.2 } }
+        }]
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("{}", { status: 404 });
+  };
+
+  const result = await discoverYouTubeLive({
+    query: "harbor live cam",
+    latitude: 34,
+    longitude: -118.2,
+    radiusKm: 50,
+    maxResults: 10,
+    apiKey: "youtube-secret-test-key",
+    fetchImpl
+  });
+
+  assert.equal(result.status, "ok");
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.production_admitted, 0);
+  assert.equal(JSON.stringify(result).includes("youtube-secret-test-key"), false);
+
+  const search = seen.find((url) => url.pathname.endsWith("/search"));
+  assert.ok(search);
+  assert.equal(search.searchParams.get("eventType"), "live");
+  assert.equal(search.searchParams.get("type"), "video");
+  assert.equal(search.searchParams.get("videoEmbeddable"), "true");
+  assert.equal(search.searchParams.get("videoSyndicated"), "true");
+  assert.equal(search.searchParams.get("location"), "34,-118.2");
+  assert.equal(search.searchParams.get("key"), "youtube-secret-test-key");
+});
+
+test("status API accepts request-scoped YouTube key without echoing it", async (t) => {
+  const server = app.listen(0, "127.0.0.1");
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  await new Promise((resolve) => server.once("listening", resolve));
+  const address = server.address();
+  const response = await fetch("http://127.0.0.1:" + address.port + "/api/status", {
+    headers: { "X-YouTube-API-Key": "youtube-secret-test-key" }
+  });
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.providers.youtube.configured, true);
+  assert.equal(JSON.stringify(payload).includes("youtube-secret-test-key"), false);
 });
 
 test("status API reports provider configuration without exposing secrets", async (t) => {

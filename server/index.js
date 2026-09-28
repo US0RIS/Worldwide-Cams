@@ -33,6 +33,11 @@ import {
   youtubeRegistryDiagnostics
 } from "./youtube-registry.js";
 import { probeCamera, probeMany } from "./camera-health.js";
+import {
+  getCameraById,
+  listAcceptedYouTubeCameras,
+  providerDescriptors
+} from "./camera-registry.js";
 
 const app = express();
 app.use(express.json({ limit: "64kb" }));
@@ -183,23 +188,8 @@ app.get("/api/cameras/windy/clusters", async (req, res) => {
   }
 });
 
-async function findCameraById(id, windyApiKey = "", youtubeApiKey = "") {
-  if (id.startsWith("windy-")) {
-    return await getWindyCamera(id, { apiKey: windyApiKey });
-  }
-  if (id.startsWith("youtube-")) {
-    const candidate = await getYouTubeCandidate(id);
-    if (!candidate || candidate.candidate_state !== "ACCEPT" || !candidate.production_eligible) return null;
-    return candidate;
-  }
-  if (id.startsWith("caltrans-")) {
-    const all = await getAllCaltrans();
-    return all.cameras.find((item) => item.id === id) || null;
-  }
-  if (id.startsWith("custom-")) {
-    return customCamerasFromEnv().find((item) => item.id === id) || null;
-  }
-  return null;
+async function findCameraById(id, windyApiKey = "", _youtubeApiKey = "") {
+  return getCameraById(id, { windyApiKey });
 }
 
 app.get("/api/youtube/status", async (req, res) => {
@@ -325,8 +315,7 @@ app.get("/api/youtube/candidates", async (req, res) => {
 
 app.get("/api/cameras/youtube", async (_req, res) => {
   try {
-    const candidates = await listYouTubeCandidates({ state: "ACCEPT", limit: 1000 });
-    const cameras = candidates.filter((item) => item.production_eligible && item.currently_live);
+    const cameras = await listAcceptedYouTubeCameras({ limit: 1000 });
     res.setHeader("Cache-Control", "no-store");
     res.json({
       status: "ok",

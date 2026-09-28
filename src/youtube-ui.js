@@ -62,6 +62,7 @@ export function initYouTubeUI({
     keyClear: document.querySelector("#youtube-key-clear"),
     consent: document.querySelector("#youtube-consent"),
     discover: document.querySelector("#youtube-discover"),
+    global: document.querySelector("#youtube-global"),
     review: document.querySelector("#youtube-review"),
     reviewCount: document.querySelector("#youtube-review-count"),
     dialog: document.querySelector("#youtube-review-dialog"),
@@ -97,6 +98,7 @@ export function initYouTubeUI({
     els.keyClear.hidden = !configured;
     els.consent.checked = consented;
     els.discover.disabled = !configured || !consented;
+    els.global.disabled = !configured || !consented;
   }
 
   async function updateReviewCount() {
@@ -144,6 +146,43 @@ export function initYouTubeUI({
     } finally {
       els.discover.textContent = old;
       els.discover.disabled = !storedYouTubeKey();
+    }
+  }
+
+  async function runGlobalBatch() {
+    if (!storedYouTubeKey()) {
+      setMessage("Add a YouTube Data API key first.");
+      return;
+    }
+    const old = els.global.textContent;
+    els.global.disabled = true;
+    els.global.textContent = "Global batch…";
+    setMessage("Running the next resumable worldwide YouTube discovery cells within the local quota budget…");
+    try {
+      const payload = await apiPostJson("/api/youtube/global/run", {
+        cell_batch: 4,
+        queries_per_cell: 4,
+        max_results: 25
+      });
+      await updateReviewCount();
+      if (payload.status === "quota_guard") {
+        setMessage(
+          "Global discovery paused by the local quota guard after " +
+          payload.search_calls_today + " search calls today. It can resume after the Pacific-time quota reset."
+        );
+      } else {
+        setMessage(
+          "Global batch processed " + payload.cells_processed + " cells with " +
+          payload.search_calls + " search calls and found " +
+          payload.unique_candidates + " unique live candidate(s). All remain REVIEW."
+        );
+      }
+    } catch (error) {
+      setMessage("Global YouTube discovery failed: " + (error?.message || error));
+    } finally {
+      els.global.textContent = old;
+      const consented = Boolean(localStorage.getItem(YOUTUBE_CONSENT_STORAGE));
+      els.global.disabled = !storedYouTubeKey() || !consented;
     }
   }
 
@@ -291,9 +330,11 @@ export function initYouTubeUI({
     if (!els.consent.checked) {
       localStorage.removeItem(YOUTUBE_CONSENT_STORAGE);
       els.discover.disabled = true;
+      els.global.disabled = true;
     } else if (storedYouTubeKey()) {
       localStorage.setItem(YOUTUBE_CONSENT_STORAGE, new Date().toISOString());
       els.discover.disabled = false;
+      els.global.disabled = false;
     }
   });
 
@@ -305,6 +346,7 @@ export function initYouTubeUI({
   });
 
   els.discover.addEventListener("click", discoverHere);
+  els.global.addEventListener("click", runGlobalBatch);
   els.review.addEventListener("click", openReview);
   els.close.addEventListener("click", () => {
     els.player.removeAttribute("src");

@@ -257,7 +257,7 @@ test("YouTube candidate normalization never admits metadata-only discovery to pr
   assert.equal(candidate.production_eligible, false);
   assert.equal(candidate.verification.visual, "REQUIRED");
   assert.equal(candidate.verification.temporal, "REQUIRED");
-  assert.match(candidate.player_url, /^https:\/\/www\.youtube\.com\/embed\//);
+  assert.match(candidate.player_url, /^https:\/\/www\.youtube-nocookie\.com\/embed\//);
 });
 
 test("YouTube discovery uses official live geographic filters and keeps key out of result", async () => {

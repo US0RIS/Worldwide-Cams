@@ -20,6 +20,17 @@ The point of this project is verification, not inference: if Jarvis says a publi
 - Free/professional API listing limits are surfaced honestly. The app does not claim a complete worldwide individual-camera inventory when the provider/API tier cannot supply one.
 - Windy images link back to the provider and include the required attribution.
 
+### YouTube Live
+- Paste a Google API key with **YouTube Data API v3** enabled into the **YouTube Data API key** field in the website header.
+- The key is stored only in that browser's local storage and sent to the local Worldwide-Cams server on YouTube-capable requests. It is not written into the candidate registry or echoed in API responses.
+- Discovery uses the official YouTube Data API with currently-live video filtering plus embeddability/syndication and geographic search constraints.
+- Newly discovered broadcasts enter a **REVIEW queue**, not the production globe. Metadata and thumbnails alone never make a YouTube result a production camera.
+- The review UI uses the normal supported YouTube embed/watch experience. A reviewer must explicitly confirm location, actual live visual content, and temporal fixed-view behavior before ACCEPT can place a YouTube camera on the production globe.
+- Stored public YouTube metadata expires before 30 days unless refreshed.
+- `WORLDWIDE_CAMS_YOUTUBE_API_KEY` is an optional server-side credential fallback. Browser entry is the normal interactive setup.
+- `WORLDWIDE_CAMS_YOUTUBE_DERIVED_METRICS_APPROVED=1` records that the operator has the applicable YouTube derived-metrics approval; it does not bypass the production visual/temporal gate.
+- The current YouTube provider is **not release-complete** under `criteria.md`: official YouTube interfaces do not expose arbitrary live video frames for an automated vision pipeline, so the implementation does not pretend thumbnails satisfy that requirement.
+
 ### Optional exact public sources
 For public direct cameras you manually enrolled elsewhere, set `WORLDWIDE_CAMS_CUSTOM_JSON` to a JSON array of camera records. This app does not read Jarvis's private SQLite ledger or expose its bearer token.
 
@@ -77,6 +88,10 @@ The app does **not** infer people, vehicles, license plates, incidents, camera f
 ## OpenStreetMap
 
 The globe uses OpenStreetMap raster tiles through MapLibre GL JS and preserves OSM attribution. The public OSM tile service is appropriate for light personal/development use; a production/high-traffic deployment should use an OSM-compatible commercial/self-hosted tile service consistent with the tile usage policy.
+
+## Acceptance
+
+`criteria.md` is the release acceptance constitution. In particular, YouTube REVIEW candidates are intentionally excluded from the normal globe until the production invariant is satisfied.
 
 ## Tests
 

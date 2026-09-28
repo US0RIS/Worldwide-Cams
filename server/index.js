@@ -226,7 +226,11 @@ app.post("/api/youtube/discover", async (req, res) => {
     const requested = Array.isArray(req.body?.queries)
       ? req.body.queries.map((value) => String(value || "").trim()).filter(Boolean).slice(0, 6)
       : [];
-    const queries = requested.length ? requested : youtubeQueryFamilies().slice(0, 4);
+    const families = youtubeQueryFamilies();
+    const querySeed = Math.floor((Math.abs(latitude) * 1000 + Math.abs(longitude) * 1000)) % families.length;
+    const queries = requested.length
+      ? requested
+      : Array.from({ length: 4 }, (_, offset) => families[(querySeed + offset) % families.length]);
 
     const runs = [];
     for (const query of queries) {

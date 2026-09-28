@@ -19,6 +19,10 @@ import {
   youtubeQueryFamilies
 } from "./providers/youtube.js";
 import {
+  runYouTubeGlobalDiscoveryBatch,
+  youtubeGlobalDiscoveryStatus
+} from "./youtube-discovery.js";
+import {
   getYouTubeCandidate,
   listYouTubeCandidates,
   pruneExpiredYouTubeData,
@@ -270,6 +274,34 @@ app.post("/api/youtube/discover", async (req, res) => {
   } catch (error) {
     const status = error?.status === 403 ? 403 : error?.status === 400 ? 400 : 502;
     sendError(res, error, status);
+  }
+});
+
+app.get("/api/youtube/global/status", async (_req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-store");
+    res.json({ status: "ok", discovery: await youtubeGlobalDiscoveryStatus() });
+  } catch (error) {
+    sendError(res, error, 500);
+  }
+});
+
+app.post("/api/youtube/global/run", async (req, res) => {
+  try {
+    const apiKey = requestYouTubeKey(req);
+    if (!youtubeConfigured(apiKey)) {
+      return sendError(res, new Error("YouTube Data API key is not configured"), 503);
+    }
+    const result = await runYouTubeGlobalDiscoveryBatch({
+      apiKey,
+      cellBatch: req.body?.cell_batch ?? 4,
+      queriesPerCell: req.body?.queries_per_cell ?? 4,
+      maxResults: req.body?.max_results ?? 25
+    });
+    res.setHeader("Cache-Control", "no-store");
+    res.json(result);
+  } catch (error) {
+    sendError(res, error, error?.status === 403 ? 403 : 502);
   }
 });
 

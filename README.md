@@ -25,6 +25,7 @@ The point of this project is verification, not inference: if Jarvis says a publi
 - The key is stored only in that browser's local storage and sent to the local Worldwide-Cams server on YouTube-capable requests. It is not written into the candidate registry or echoed in API responses.
 - Discovery uses the official YouTube Data API with currently-live video filtering plus embeddability/syndication and geographic search constraints.
 - Newly discovered broadcasts enter a **REVIEW queue**, not the production globe. Metadata and thumbnails alone never make a YouTube result a production camera.
+- **Discover YouTube here** searches the current map area. **Global YouTube batch** advances a persistent equal-area world grid in quota-bounded batches; it resumes where the previous batch stopped and defaults to an 80-search-call/day local guard against the current 100-call/day default `search.list` quota.
 - The review UI uses the normal supported YouTube embed/watch experience. A reviewer must explicitly confirm location, actual live visual content, and temporal fixed-view behavior before ACCEPT can place a YouTube camera on the production globe.
 - Stored public YouTube metadata expires before 30 days unless refreshed.
 - `WORLDWIDE_CAMS_YOUTUBE_API_KEY` is an optional server-side credential fallback. Browser entry is the normal interactive setup.

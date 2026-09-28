@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Worldwide Cams Privacy</title>
+  <style>
+    body{max-width:820px;margin:40px auto;padding:0 20px;background:#071019;color:#ecf4fa;font:16px/1.6 system-ui,sans-serif}
+    a{color:#84ddff} code{background:#102331;padding:2px 5px;border-radius:4px}
+    h1,h2{line-height:1.2}
+  </style>
+</head>
+<body>
+  <h1>Worldwide Cams Privacy</h1>
+  <p>Worldwide Cams is a local public-camera verification application. It uses public camera-provider APIs, including the YouTube Data API when you configure a YouTube API key.</p>
+
+  <h2>Credentials</h2>
+  <p>Windy and YouTube API keys entered in the web interface are stored in this browser's local storage. They are sent only to the local Worldwide Cams server for requests that need the corresponding provider. The server does not write those keys into the camera registry or return them in API responses.</p>
+
+  <h2>YouTube API data</h2>
+  <p>When YouTube discovery is enabled, Worldwide Cams can temporarily store public, non-authorized API data such as video IDs, titles, channel attribution, thumbnails, live status, embeddability, and geographic metadata. Stored YouTube metadata is configured to expire before 30 days unless refreshed. Worldwide Cams does not request your YouTube account login or private YouTube data.</p>
+
+  <h2>Review decisions</h2>
+  <p>Worldwide Cams can store local review decisions about whether a discovered public broadcast is suitable for the fixed-camera layer. Those review decisions are part of Worldwide Cams, not YouTube-provided categories or endorsements.</p>
+
+  <h2>Other providers</h2>
+  <p>Caltrans, Windy, custom public sources, and future providers remain independently attributed in the interface. Worldwide Cams does not claim that a provider marker proves capture time, camera field of view, or an observed event.</p>
+
+  <h2>Third-party services</h2>
+  <p>Use of YouTube features is also subject to the <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a> and <a href="https://policies.google.com/privacy">Google Privacy Policy</a>. OpenStreetMap tiles and other configured camera providers are subject to their own terms and policies.</p>
+
+  <h2>Deleting local data</h2>
+  <p>You can clear provider keys from the Worldwide Cams header. Runtime candidate data is stored under <code>data/runtime/</code> on the machine running the local server and can be deleted by the operator. Deleting local data does not delete anything from YouTube or another provider.</p>
+
+  <p><a href="/">Return to Worldwide Cams</a></p>
+</body>
+</html>

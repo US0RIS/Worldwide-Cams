@@ -290,10 +290,11 @@ export function initYouTubeUI({
   els.consent.addEventListener("change", () => {
     if (!els.consent.checked) {
       localStorage.removeItem(YOUTUBE_CONSENT_STORAGE);
+      els.discover.disabled = true;
     } else if (storedYouTubeKey()) {
       localStorage.setItem(YOUTUBE_CONSENT_STORAGE, new Date().toISOString());
+      els.discover.disabled = false;
     }
-    renderKeyState();
   });
 
   els.keyInput.addEventListener("keydown", (event) => {
